@@ -12,9 +12,9 @@ include Makedefs
 
 # Source directories...
 DIRS	=	\
-		berkeley \
+		commands \
 		locale \
-		systemv
+		man
 
 
 #
