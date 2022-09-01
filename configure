@@ -614,7 +614,7 @@ PACKAGE_TARNAME='cups-commands'
 PACKAGE_VERSION='3.0b1'
 PACKAGE_STRING='CUPS_COMMANDS 3.0b1'
 PACKAGE_BUGREPORT='https://github.com/OpenPrinting/cups-commands/issues'
-PACKAGE_URL='https://openprinting.github.io/cups3'
+PACKAGE_URL='https://openprinting.github.io/cups'
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
@@ -1343,7 +1343,7 @@ Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
 
 Report bugs to <https://github.com/OpenPrinting/cups-commands/issues>.
-CUPS_COMMANDS home page: <https://openprinting.github.io/cups3>.
+CUPS_COMMANDS home page: <https://openprinting.github.io/cups>.
 _ACEOF
 ac_status=$?
 fi
@@ -4482,7 +4482,7 @@ Configuration headers:
 $config_headers
 
 Report bugs to <https://github.com/OpenPrinting/cups-commands/issues>.
-CUPS_COMMANDS home page: <https://openprinting.github.io/cups3>."
+CUPS_COMMANDS home page: <https://openprinting.github.io/cups>."
 
 _ACEOF
 ac_cs_config=`printf "%s\n" "$ac_configure_args" | sed "$ac_safe_unquote"`

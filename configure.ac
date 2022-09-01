@@ -19,7 +19,7 @@ AC_PREREQ([2.70])
 
 
 dnl Package name and version...
-AC_INIT([CUPS_COMMANDS], [3.0b1], [https://github.com/OpenPrinting/cups-commands/issues], [cups-commands], [https://openprinting.github.io/cups3])
+AC_INIT([CUPS_COMMANDS], [3.0b1], [https://github.com/OpenPrinting/cups-commands/issues], [cups-commands], [https://openprinting.github.io/cups])
 AC_CONFIG_HEADERS([config.h])
 
 CUPS_VERSION="AC_PACKAGE_VERSION"
