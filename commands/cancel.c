@@ -1,53 +1,49 @@
-/*
- * "cancel" command for CUPS.
- *
- * Copyright © 2021-2022 by OpenPrinting.
- * Copyright © 2007-2018 by Apple Inc.
- * Copyright © 1997-2006 by Easy Software Products.
- *
- * Licensed under Apache License v2.0.  See the file "LICENSE" for more
- * information.
- */
+//
+// "cancel" command for CUPS.
+//
+// Copyright © 2021-2022 by OpenPrinting.
+// Copyright © 2007-2018 by Apple Inc.
+// Copyright © 1997-2006 by Easy Software Products.
+//
+// Licensed under Apache License v2.0.  See the file "LICENSE" for more
+// information.
+//
 
-/*
- * Include necessary headers...
- */
-
-#include <cups/cups-private.h>
+#include "localize.h"
 
 
-/*
- * Local functions...
- */
+//
+// Local functions...
+//
 
 static void	usage(void) _CUPS_NORETURN;
 
 
-/*
- * 'main()' - Parse options and cancel jobs.
- */
+//
+// 'main()' - Parse options and cancel jobs.
+//
 
-int					/* O - Exit status */
-main(int  argc,				/* I - Number of command-line arguments */
-     char *argv[])			/* I - Command-line arguments */
+int					// O - Exit status
+main(int  argc,				// I - Number of command-line arguments
+     char *argv[])			// I - Command-line arguments
 {
-  http_t	*http;			/* HTTP connection to server */
-  int		i;			/* Looping var */
-  int		job_id;			/* Job ID */
-  int		num_dests;		/* Number of destinations */
-  cups_dest_t	*dests;			/* Destinations */
-  char		*opt,			/* Option pointer */
-		*dest,			/* Destination printer */
-		*job,			/* Job ID pointer */
-		*user;			/* Cancel jobs for a user */
-  int		purge;			/* Purge or cancel jobs? */
-  char		uri[1024];		/* Printer or job URI */
-  ipp_t		*request;		/* IPP request */
-  ipp_t		*response;		/* IPP response */
-  ipp_op_t	op;			/* Operation */
+  http_t	*http;			// HTTP connection to server
+  int		i;			// Looping var
+  int		job_id;			// Job ID
+  int		num_dests;		// Number of destinations
+  cups_dest_t	*dests;			// Destinations
+  char		*opt,			// Option pointer
+		*dest,			// Destination printer
+		*job,			// Job ID pointer
+		*user;			// Cancel jobs for a user
+  int		purge;			// Purge or cancel jobs?
+  char		uri[1024];		// Printer or job URI
+  ipp_t		*request;		// IPP request
+  ipp_t		*response;		// IPP response
+  ipp_op_t	op;			// Operation
 
 
-  _cupsSetLocale(argv);
+  localize_init(argv);
 
  /*
   * Setup to cancel individual print jobs...
@@ -76,18 +72,18 @@ main(int  argc,				/* I - Number of command-line arguments */
       {
 	switch (*opt)
 	{
-	  case 'E' : /* Encrypt */
+	  case 'E' : // Encrypt
 #ifdef HAVE_TLS
-	      cupsSetEncryption(HTTP_ENCRYPT_REQUIRED);
+	      cupsSetEncryption(HTTP_ENCRYPTION_REQUIRED);
 
 	      if (http)
-		httpEncryption(http, HTTP_ENCRYPT_REQUIRED);
+		httpEncryption(http, HTTP_ENCRYPTION_REQUIRED);
 #else
-	      _cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), argv[0]);
-#endif /* HAVE_TLS */
+	      cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), argv[0]);
+#endif // HAVE_TLS
 	      break;
 
-	  case 'U' : /* Username */
+	  case 'U' : // Username
 	      if (opt[1] != '\0')
 	      {
 		cupsSetUser(opt + 1);
@@ -98,7 +94,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 		i ++;
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected username after \"-U\" option."), argv[0]);
+		  cupsLangPrintf(stderr, _("%s: Error - expected username after \"-U\" option."), argv[0]);
 		  usage();
 		}
 
@@ -106,11 +102,11 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      }
 	      break;
 
-	  case 'a' : /* Cancel all jobs */
+	  case 'a' : // Cancel all jobs
 	      op = purge ? IPP_PURGE_JOBS : IPP_CANCEL_JOBS;
 	      break;
 
-	  case 'h' : /* Connect to host */
+	  case 'h' : // Connect to host
 	      if (http != NULL)
 	      {
 		httpClose(http);
@@ -128,7 +124,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected hostname after \"-h\" option."), argv[0]);
+		  cupsLangPrintf(stderr, _("%s: Error - expected hostname after \"-h\" option."), argv[0]);
 		  usage();
 		}
 		else
@@ -136,7 +132,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      }
 	      break;
 
-	  case 'u' : /* Username */
+	  case 'u' : // Username
 	      op = IPP_CANCEL_MY_JOBS;
 
 	      if (opt[1] != '\0')
@@ -150,7 +146,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected username after \"-u\" option."), argv[0]);
+		  cupsLangPrintf(stderr, _("%s: Error - expected username after \"-u\" option."), argv[0]);
 		  usage();
 		}
 		else
@@ -158,7 +154,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      }
 	      break;
 
-	  case 'x' : /* Purge job(s) */
+	  case 'x' : // Purge job(s)
 	      purge = 1;
 
 	      if (op == IPP_CANCEL_JOBS)
@@ -166,7 +162,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      break;
 
 	  default :
-	      _cupsLangPrintf(stderr, _("%s: Error - unknown option \"%c\"."), argv[0], *opt);
+	      cupsLangPrintf(stderr, _("%s: Error - unknown option \"%c\"."), argv[0], *opt);
 	      return (1);
 	}
       }
@@ -224,7 +220,7 @@ main(int  argc,				/* I - Number of command-line arguments */
         * Bad printer name!
 	*/
 
-        _cupsLangPrintf(stderr,
+        cupsLangPrintf(stderr,
 	                _("%s: Error - unknown destination \"%s\"."),
 			argv[0], argv[i]);
 	return (1);
@@ -244,10 +240,10 @@ main(int  argc,				/* I - Number of command-line arguments */
       */
 
       if (http == NULL)
-	if ((http = httpConnectEncrypt(cupsServer(), ippPort(),
-	                               cupsEncryption())) == NULL)
+	if ((http = httpConnectEncrypt(cupsGetServer(), ippGetPort(),
+	                               cupsGetEncryption())) == NULL)
 	{
-	  _cupsLangPrintf(stderr,
+	  cupsLangPrintf(stderr,
 	                  _("%s: Unable to connect to server."), argv[0]);
 	  return (1);
 	}
@@ -291,7 +287,7 @@ main(int  argc,				/* I - Number of command-line arguments */
       }
       else
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-                     "requesting-user-name", NULL, cupsUser());
+                     "requesting-user-name", NULL, cupsGetUser());
 
       if (purge)
 	ippAddBoolean(request, IPP_TAG_OPERATION, "purge-jobs", (char)purge);
@@ -300,7 +296,7 @@ main(int  argc,				/* I - Number of command-line arguments */
       * Do the request and get back a response...
       */
 
-      if (op == IPP_CANCEL_JOBS && (!user || _cups_strcasecmp(user, cupsUser())))
+      if (op == IPP_CANCEL_JOBS && (!user || _cups_strcasecmp(user, cupsGetUser())))
         response = cupsDoRequest(http, request, "/admin/");
       else
         response = cupsDoRequest(http, request, "/jobs/");
@@ -308,7 +304,7 @@ main(int  argc,				/* I - Number of command-line arguments */
       if (response == NULL ||
           response->request.status.status_code > IPP_OK_CONFLICT)
       {
-	_cupsLangPrintf(stderr, _("%s: %s failed: %s"), argv[0],
+	cupsLangPrintf(stderr, _("%s: %s failed: %s"), argv[0],
 	        	op == IPP_PURGE_JOBS ? "purge-jobs" : "cancel-job",
         		cupsLastErrorString());
 
@@ -328,10 +324,10 @@ main(int  argc,				/* I - Number of command-line arguments */
     */
 
     if (http == NULL)
-      if ((http = httpConnectEncrypt(cupsServer(), ippPort(),
-	                             cupsEncryption())) == NULL)
+      if ((http = httpConnectEncrypt(cupsGetServer(), ippGetPort(),
+	                             cupsGetEncryption())) == NULL)
       {
-	_cupsLangPrintf(stderr, _("%s: Unable to contact server."), argv[0]);
+	cupsLangPrintf(stderr, _("%s: Unable to contact server."), argv[0]);
 	return (1);
       }
 
@@ -358,7 +354,7 @@ main(int  argc,				/* I - Number of command-line arguments */
     }
     else
       ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-                   "requesting-user-name", NULL, cupsUser());
+                   "requesting-user-name", NULL, cupsGetUser());
 
     ippAddBoolean(request, IPP_TAG_OPERATION, "purge-jobs", (char)purge);
 
@@ -371,7 +367,7 @@ main(int  argc,				/* I - Number of command-line arguments */
     if (response == NULL ||
         response->request.status.status_code > IPP_OK_CONFLICT)
     {
-      _cupsLangPrintf(stderr, _("%s: %s failed: %s"), argv[0],
+      cupsLangPrintf(stderr, _("%s: %s failed: %s"), argv[0],
 		      op == IPP_PURGE_JOBS ? "purge-jobs" : "cancel-job",
         	      cupsLastErrorString());
 
@@ -387,23 +383,23 @@ main(int  argc,				/* I - Number of command-line arguments */
 }
 
 
-/*
- * 'usage()' - Show program usage and exit.
- */
+//
+// 'usage()' - Show program usage and exit.
+//
 
 static void
 usage(void)
 {
-  _cupsLangPuts(stdout, _("Usage: cancel [options] [id]\n"
+  cupsLangPuts(stdout, _("Usage: cancel [options] [id]\n"
                           "       cancel [options] [destination]\n"
                           "       cancel [options] [destination-id]"));
-  _cupsLangPuts(stdout, _("Options:"));
-  _cupsLangPuts(stdout, _("-a                      Cancel all jobs"));
-  _cupsLangPuts(stdout, _("-E                      Encrypt the connection to the server"));
-  _cupsLangPuts(stdout, _("-h server[:port]        Connect to the named server and port"));
-  _cupsLangPuts(stdout, _("-u owner                Specify the owner to use for jobs"));
-  _cupsLangPuts(stdout, _("-U username             Specify the username to use for authentication"));
-  _cupsLangPuts(stdout, _("-x                      Purge jobs rather than just canceling"));
+  cupsLangPuts(stdout, _("Options:"));
+  cupsLangPuts(stdout, _("-a                      Cancel all jobs"));
+  cupsLangPuts(stdout, _("-E                      Encrypt the connection to the server"));
+  cupsLangPuts(stdout, _("-h server[:port]        Connect to the named server and port"));
+  cupsLangPuts(stdout, _("-u owner                Specify the owner to use for jobs"));
+  cupsLangPuts(stdout, _("-U username             Specify the username to use for authentication"));
+  cupsLangPuts(stdout, _("-x                      Purge jobs rather than just canceling"));
 
   exit(1);
 }

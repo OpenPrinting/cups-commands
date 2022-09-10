@@ -1,48 +1,44 @@
-/*
- * "cupsaccept", "cupsdisable", "cupsenable", and "cupsreject" commands for
- * CUPS.
- *
- * Copyright © 2021-2022 by OpenPrinting.
- * Copyright © 2007-2018 by Apple Inc.
- * Copyright © 1997-2006 by Easy Software Products.
- *
- * Licensed under Apache License v2.0.  See the file "LICENSE" for more
- * information.
- */
+//
+// "cupsaccept", "cupsdisable", "cupsenable", and "cupsreject" commands for
+// CUPS.
+//
+// Copyright © 2021-2022 by OpenPrinting.
+// Copyright © 2007-2018 by Apple Inc.
+// Copyright © 1997-2006 by Easy Software Products.
+//
+// Licensed under Apache License v2.0.  See the file "LICENSE" for more
+// information.
+//
 
-/*
- * Include necessary headers...
- */
-
-#include <cups/cups-private.h>
+#include "localize.h"
 
 
-/*
- * Local functions...
- */
+//
+// Local functions...
+//
 
 static void	usage(const char *command) _CUPS_NORETURN;
 
 
-/*
- * 'main()' - Parse options and accept/reject jobs or disable/enable printers.
- */
+//
+// 'main()' - Parse options and accept/reject jobs or disable/enable printers.
+//
 
-int					/* O - Exit status */
-main(int  argc,				/* I - Number of command-line arguments */
-     char *argv[])			/* I - Command-line arguments */
+int					// O - Exit status
+main(int  argc,				// I - Number of command-line arguments
+     char *argv[])			// I - Command-line arguments
 {
-  int		i;			/* Looping var */
-  char		*command,		/* Command to do */
-		*opt,			/* Option pointer */
-		uri[1024],		/* Printer URI */
-		*reason;		/* Reason for reject/disable */
-  ipp_t		*request;		/* IPP request */
-  ipp_op_t	op;			/* Operation */
-  int		cancel;			/* Cancel jobs? */
+  int		i;			// Looping var
+  char		*command,		// Command to do
+		*opt,			// Option pointer
+		uri[1024],		// Printer URI
+		*reason;		// Reason for reject/disable
+  ipp_t		*request;		// IPP request
+  ipp_op_t	op;			// Operation
+  int		cancel;			// Cancel jobs?
 
 
-  _cupsSetLocale(argv);
+  localize_init(argv);
 
  /*
   * See what operation we're supposed to do...
@@ -65,7 +61,7 @@ main(int  argc,				/* I - Number of command-line arguments */
     op = IPP_RESUME_PRINTER;
   else
   {
-    _cupsLangPrintf(stderr, _("%s: Don't know what to do."), command);
+    cupsLangPrintf(stderr, _("%s: Don't know what to do."), command);
     return (1);
   }
 
@@ -89,15 +85,15 @@ main(int  argc,				/* I - Number of command-line arguments */
       {
 	switch (*opt)
 	{
-	  case 'E' : /* Encrypt */
+	  case 'E' : // Encrypt
 #ifdef HAVE_TLS
-	      cupsSetEncryption(HTTP_ENCRYPT_REQUIRED);
+	      cupsSetEncryption(HTTP_ENCRYPTION_REQUIRED);
 #else
-	      _cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), command);
-#endif /* HAVE_TLS */
+	      cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), command);
+#endif // HAVE_TLS
 	      break;
 
-	  case 'U' : /* Username */
+	  case 'U' : // Username
 	      if (opt[1] != '\0')
 	      {
 		cupsSetUser(opt + 1);
@@ -108,7 +104,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 		i ++;
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected username after \"-U\" option."), command);
+		  cupsLangPrintf(stderr, _("%s: Error - expected username after \"-U\" option."), command);
 		  usage(command);
 		}
 
@@ -116,11 +112,11 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      }
 	      break;
 
-	  case 'c' : /* Cancel jobs */
+	  case 'c' : // Cancel jobs
 	      cancel = 1;
 	      break;
 
-	  case 'h' : /* Connect to host */
+	  case 'h' : // Connect to host
 	      if (opt[1] != '\0')
 	      {
 		cupsSetServer(opt + 1);
@@ -131,7 +127,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 		i ++;
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected hostname after \"-h\" option."), command);
+		  cupsLangPrintf(stderr, _("%s: Error - expected hostname after \"-h\" option."), command);
 		  usage(command);
 		}
 
@@ -139,7 +135,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      }
 	      break;
 
-	  case 'r' : /* Reason for cancellation */
+	  case 'r' : // Reason for cancellation
 	      if (opt[1] != '\0')
 	      {
 		reason = opt + 1;
@@ -150,7 +146,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 		i ++;
 		if (i >= argc)
 		{
-		  _cupsLangPrintf(stderr, _("%s: Error - expected reason text after \"-r\" option."), command);
+		  cupsLangPrintf(stderr, _("%s: Error - expected reason text after \"-r\" option."), command);
 		  usage(command);
 		}
 
@@ -159,7 +155,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	      break;
 
 	  default :
-	      _cupsLangPrintf(stderr, _("%s: Error - unknown option \"%c\"."), command, *opt);
+	      cupsLangPrintf(stderr, _("%s: Error - unknown option \"%c\"."), command, *opt);
 	      usage(command);
 	}
       }
@@ -178,7 +174,7 @@ main(int  argc,				/* I - Number of command-line arguments */
                    "printer-uri", NULL, uri);
 
       ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-                   "requesting-user-name", NULL, cupsUser());
+                   "requesting-user-name", NULL, cupsGetUser());
 
       if (reason != NULL)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_TEXT,
@@ -192,7 +188,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
       if (cupsLastError() > IPP_OK_CONFLICT)
       {
-	_cupsLangPrintf(stderr,
+	cupsLangPrintf(stderr,
 			_("%s: Operation failed: %s"),
 			command, ippErrorString(cupsLastError()));
 	return (1);
@@ -222,7 +218,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
         if (cupsLastError() > IPP_OK_CONFLICT)
 	{
-	  _cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
+	  cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
 	  return (1);
 	}
       }
@@ -233,23 +229,23 @@ main(int  argc,				/* I - Number of command-line arguments */
 }
 
 
-/*
- * 'usage()' - Show program usage and exit.
- */
+//
+// 'usage()' - Show program usage and exit.
+//
 
 static void
-usage(const char *command)		/* I - Command name */
+usage(const char *command)		// I - Command name
 {
-  _cupsLangPrintf(stdout, _("Usage: %s [options] destination(s)"), command);
-  _cupsLangPuts(stdout, _("Options:"));
-  _cupsLangPuts(stdout, _("-E                      Encrypt the connection to the server"));
-  _cupsLangPuts(stdout, _("-h server[:port]        Connect to the named server and port"));
-  _cupsLangPuts(stdout, _("-r reason               Specify a reason message that others can see"));
-  _cupsLangPuts(stdout, _("-U username             Specify the username to use for authentication"));
+  cupsLangPrintf(stdout, _("Usage: %s [options] destination(s)"), command);
+  cupsLangPuts(stdout, _("Options:"));
+  cupsLangPuts(stdout, _("-E                      Encrypt the connection to the server"));
+  cupsLangPuts(stdout, _("-h server[:port]        Connect to the named server and port"));
+  cupsLangPuts(stdout, _("-r reason               Specify a reason message that others can see"));
+  cupsLangPuts(stdout, _("-U username             Specify the username to use for authentication"));
   if (!strcmp(command, "cupsdisable"))
-    _cupsLangPuts(stdout, _("--hold                  Hold new jobs"));
+    cupsLangPuts(stdout, _("--hold                  Hold new jobs"));
   if (!strcmp(command, "cupsenable"))
-    _cupsLangPuts(stdout, _("--release               Release previously held jobs"));
+    cupsLangPuts(stdout, _("--release               Release previously held jobs"));
 
   exit(1);
 }

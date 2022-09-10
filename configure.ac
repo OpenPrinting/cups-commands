@@ -186,6 +186,7 @@ AC_ARG_WITH([ldflags], AS_HELP_STRING([--with-ldflags=...], [Specify additional 
     LDFLAGS="$withval $LDFLAGS"
 ])
 
+
 dnl State and run directories for root servers...
 AS_IF([test "$prefix" = NONE], [
     # Default prefix isn't bound until AC_OUTPUT...

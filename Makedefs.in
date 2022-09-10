@@ -35,8 +35,8 @@ CC		=	@CC@
 CFLAGS		=	@CFLAGS@ $(CPPFLAGS) $(OPTIM) $(WARNINGS)
 CODE_SIGN	=	@CODE_SIGN@
 CODESIGN_IDENTITY =	-
-CPPFLAGS	=	-I.. -I../libcups -I../pdfio @CPPFLAGS@
-CSFLAGS		=	-s "$(CODESIGN_IDENTITY)" @CSFLAGS@ --timestamp
+CPPFLAGS	=	-I.. -I../libcups -I../pdfio @CPPFLAGS@ -DCUPS_DATADIR='"$(datadir)"'
+CSFLAGS		=	-s "$(CODESIGN_IDENTITY)" @CSFLAGS@ --timestamp --prefix org.cups
 INSTALL		=	@INSTALL@
 LDFLAGS		=	@LDFLAGS@ $(OPTIM)
 LIBS		=	@LIBS@
