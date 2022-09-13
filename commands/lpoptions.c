@@ -15,7 +15,7 @@
 // Local functions...
 //
 
-static void	list_group(ppd_file_t *ppd, ppd_group_t *group);
+//static void	list_group(ppd_file_t *ppd, ppd_group_t *group);
 static void	list_options(cups_dest_t *dest);
 static void	usage(void) _CUPS_NORETURN;
 
@@ -28,11 +28,12 @@ int					// O - Exit status
 main(int  argc,				// I - Number of command-line arguments
      char *argv[])			// I - Command-line arguments
 {
-  int		i, j;			// Looping vars
+  int		i;			// Looping var
+  size_t	j;			// Looping var
   int		changes;		// Did we make changes?
-  int		num_options;		// Number of options
+  size_t	num_options;		// Number of options
   cups_option_t	*options;		// Options
-  int		num_dests;		// Number of destinations
+  size_t	num_dests;		// Number of destinations
   cups_dest_t	*dests;			// Destinations
   cups_dest_t	*dest;			// Current destination
   char		*opt,			// Option pointer
@@ -43,10 +44,7 @@ main(int  argc,				// I - Number of command-line arguments
 
   localize_init(argv);
 
- /*
-  * Loop through the command-line arguments...
-  */
-
+  // Loop through the command-line arguments...
   dest        = NULL;
   num_dests   = 0;
   dests       = NULL;
@@ -57,7 +55,9 @@ main(int  argc,				// I - Number of command-line arguments
   for (i = 1; i < argc; i ++)
   {
     if (!strcmp(argv[i], "--help"))
+    {
       usage();
+    }
     else if (argv[i][0] == '-')
     {
       for (opt = argv[i] + 1; *opt; opt ++)
@@ -83,7 +83,7 @@ main(int  argc,				// I - Number of command-line arguments
 		*instance++ = '\0';
 
 	      if (num_dests == 0)
-		num_dests = cupsGetDests(&dests);
+		num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
 	      if (num_dests == 0 || !dests || (dest = cupsGetDest(printer, instance, num_dests, dests)) == NULL)
 	      {
@@ -100,14 +100,13 @@ main(int  argc,				// I - Number of command-line arguments
 
 	      dest->is_default = 1;
 
-	      cupsSetDests(num_dests, dests);
+	      cupsSetDests(CUPS_HTTP_DEFAULT, num_dests, dests);
 
 	      for (j = 0; j < dest->num_options; j ++)
-		if (cupsGetOption(dest->options[j].name, num_options,
-				  options) == NULL)
-		  num_options = cupsAddOption(dest->options[j].name,
-					      dest->options[j].value,
-					      num_options, &options);
+	      {
+		if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
+		  num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+	      }
 	      break;
 
 	  case 'h' : // -h server
@@ -134,7 +133,7 @@ main(int  argc,				// I - Number of command-line arguments
 	      if (dest == NULL)
 	      {
 		if (num_dests == 0)
-		  num_dests = cupsGetDests(&dests);
+		  num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
 		if ((dest = cupsGetDest(NULL, NULL, num_dests, dests)) == NULL)
 		  dest = dests;
@@ -152,7 +151,7 @@ main(int  argc,				// I - Number of command-line arguments
 	      if (dest == NULL)
 	      {
 		if (num_dests == 0)
-		  num_dests = cupsGetDests(&dests);
+		  num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
 		if ((dest = cupsGetDest(NULL, NULL, num_dests, dests)) == NULL)
 		  dest = dests;
@@ -164,10 +163,10 @@ main(int  argc,				// I - Number of command-line arguments
 		}
 
 		for (j = 0; j < dest->num_options; j ++)
+		{
 		  if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
-		    num_options = cupsAddOption(dest->options[j].name,
-						dest->options[j].value,
-						num_options, &options);
+		    num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+		}
 	      }
 
 	      if (opt[1] != '\0')
@@ -206,7 +205,7 @@ main(int  argc,				// I - Number of command-line arguments
 		*instance++ = '\0';
 
 	      if (num_dests == 0)
-		num_dests = cupsGetDests(&dests);
+		num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
 	      if ((dest = cupsGetDest(printer, instance, num_dests, dests)) == NULL)
 	      {
@@ -221,17 +220,17 @@ main(int  argc,				// I - Number of command-line arguments
 	      }
 
 	      for (j = 0; j < dest->num_options; j ++)
+	      {
 		if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
-		  num_options = cupsAddOption(dest->options[j].name,
-					      dest->options[j].value,
-					      num_options, &options);
+		  num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+	      }
 	      break;
 
 	  case 'r' : // -r option (remove)
 	      if (dest == NULL)
 	      {
 		if (num_dests == 0)
-		  num_dests = cupsGetDests(&dests);
+		  num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
 		if ((dest = cupsGetDest(NULL, NULL, num_dests, dests)) == NULL)
 		  dest = dests;
@@ -243,11 +242,10 @@ main(int  argc,				// I - Number of command-line arguments
 		}
 
 		for (j = 0; j < dest->num_options; j ++)
-		  if (cupsGetOption(dest->options[j].name, num_options,
-				    options) == NULL)
-		    num_options = cupsAddOption(dest->options[j].name,
-						dest->options[j].value,
-						num_options, &options);
+		{
+		  if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
+		    num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+		}
 	      }
 
 	      if (opt[1] != '\0')
@@ -288,11 +286,11 @@ main(int  argc,				// I - Number of command-line arguments
 		*instance++ = '\0';
 
 	      if (num_dests == 0)
-		num_dests = cupsGetDests(&dests);
+		num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
               num_dests = cupsRemoveDest(printer, instance, num_dests, &dests);
 
-	      cupsSetDests(num_dests, dests);
+	      cupsSetDests(CUPS_HTTP_DEFAULT, num_dests, dests);
 	      dest    = NULL;
 	      changes = -1;
 	      break;
@@ -309,17 +307,17 @@ main(int  argc,				// I - Number of command-line arguments
   }
 
   if (num_dests == 0)
-    num_dests = cupsGetDests(&dests);
+    num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
   if (dest == NULL)
   {
     if ((dest = cupsGetDest(NULL, NULL, num_dests, dests)) != NULL)
     {
       for (j = 0; j < dest->num_options; j ++)
+      {
 	if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
-	  num_options = cupsAddOption(dest->options[j].name,
-	                              dest->options[j].value,
-	                              num_options, &options);
+	  num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+      }
     }
   }
 
@@ -328,16 +326,13 @@ main(int  argc,				// I - Number of command-line arguments
 
   if (changes > 0)
   {
-   /*
-    * Set printer options...
-    */
-
+    // Set printer options...
     cupsFreeOptions(dest->num_options, dest->options);
 
     dest->num_options = num_options;
     dest->options     = options;
 
-    cupsSetDests(num_dests, dests);
+    cupsSetDests(CUPS_HTTP_DEFAULT, num_dests, dests);
   }
   else if (changes == 0)
   {
@@ -347,20 +342,17 @@ main(int  argc,				// I - Number of command-line arguments
     num_options = dest->num_options;
     options     = dest->options;
 
-    for (i = 0, ptr = buffer;
-         ptr < (buffer + sizeof(buffer) - 1) && i < num_options;
-	 i ++)
+    for (j = 0, ptr = buffer; ptr < (buffer + sizeof(buffer) - 1) && j < num_options; j ++)
     {
-      if (i)
+      if (j)
         *ptr++ = ' ';
 
-      if (!options[i].value[0])
-        cupsCopyString(ptr, options[i].name, sizeof(buffer) - (size_t)(ptr - buffer));
-      else if (strchr(options[i].value, ' ') != NULL ||
-               strchr(options[i].value, '\t') != NULL)
-	snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), "%s=\'%s\'", options[i].name, options[i].value);
+      if (!options[j].value[0])
+        cupsCopyString(ptr, options[j].name, sizeof(buffer) - (size_t)(ptr - buffer));
+      else if (strchr(options[i].value, ' ') != NULL || strchr(options[i].value, '\t') != NULL)
+	snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), "%s=\'%s\'", options[j].name, options[j].value);
       else
-	snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), "%s=%s", options[i].name, options[i].value);
+	snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), "%s=%s", options[j].name, options[j].value);
 
       ptr += strlen(ptr);
     }
@@ -371,6 +363,8 @@ main(int  argc,				// I - Number of command-line arguments
   return (0);
 }
 
+
+#if 0 // TODO: Convert to reporting IPP attributes and values
 //
 // 'list_group()' - List printer-specific options from the PPD group.
 //
@@ -389,7 +383,7 @@ list_group(ppd_file_t  *ppd,		// I - PPD file
 
   for (i = group->num_options, option = group->options; i > 0; i --, option ++)
   {
-    if (!_cups_strcasecmp(option->keyword, "PageRegion"))
+    if (!strcasecmp(option->keyword, "PageRegion"))
       continue;
 
     snprintf(buffer, sizeof(buffer), "%s/%s:", option->keyword, option->text);
@@ -399,7 +393,7 @@ list_group(ppd_file_t  *ppd,		// I - PPD file
          j > 0 && ptr < (buffer + sizeof(buffer) - 1);
 	 j --, choice ++)
     {
-      if (!_cups_strcasecmp(choice->choice, "Custom"))
+      if (!strcasecmp(choice->choice, "Custom"))
       {
         ppd_coption_t	*coption;	// Custom option
         ppd_cparam_t	*cparam;	// Custom parameter
@@ -419,8 +413,8 @@ list_group(ppd_file_t  *ppd,		// I - PPD file
         if ((coption = ppdFindCustomOption(ppd, option->keyword)) == NULL ||
 	    cupsArrayCount(coption->params) == 0)
 	  snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), " %sCustom", choice->marked ? "*" : "");
-        else if (!_cups_strcasecmp(option->keyword, "PageSize") ||
-	         !_cups_strcasecmp(option->keyword, "PageRegion"))
+        else if (!strcasecmp(option->keyword, "PageSize") ||
+	         !strcasecmp(option->keyword, "PageRegion"))
 	  snprintf(ptr, sizeof(buffer) - (size_t)(ptr - buffer), " %sCustom.WIDTHxHEIGHT", choice->marked ? "*" : "");
         else
 	{
@@ -465,6 +459,7 @@ list_group(ppd_file_t  *ppd,		// I - PPD file
   for (i = group->num_subgroups, subgroup = group->subgroups; i > 0; i --, subgroup ++)
     list_group(ppd, subgroup);
 }
+#endif // 0
 
 
 //
@@ -474,6 +469,7 @@ list_group(ppd_file_t  *ppd,		// I - PPD file
 static void
 list_options(cups_dest_t *dest)		// I - Destination to list
 {
+#if 0 // TODO: List supported attributes
   http_t	*http;			// Connection to destination
   char		resource[1024];		// Resource path
   int		i;			// Looping var
@@ -516,6 +512,7 @@ list_options(cups_dest_t *dest)		// I - Destination to list
 
   ppdClose(ppd);
   unlink(filename);
+#endif // 0
 }
 
 

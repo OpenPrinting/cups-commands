@@ -16,10 +16,9 @@
 // Local functions...
 //
 
-static http_t	*connect_server(const char *, http_t *);
-static int	show_jobs(const char *, http_t *, const char *,
-		          const char *, const int, const int);
-static void	show_printer(const char *, http_t *, const char *);
+static http_t	*connect_server(const char *command, http_t *http);
+static int	show_jobs(const char *command, http_t *http, const char *dest, const char *user, const int id, const int longstatus);
+static void	show_printer(const char *command, http_t *http, const char *dest);
 static void	usage(void) _CUPS_NORETURN;
 
 
@@ -281,8 +280,7 @@ connect_server(const char *command,	// I - Command name
 {
   if (!http)
   {
-    http = httpConnectEncrypt(cupsGetServer(), ippGetPort(),
-	                      cupsGetEncryption());
+    http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC,  cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
     if (http == NULL)
     {
@@ -351,60 +349,50 @@ show_jobs(const char *command,		// I - Command name
   if (http == NULL)
     return (0);
 
- /*
-  * Build an IPP_GET_JOBS or IPP_GET_JOB_ATTRIBUTES request, which requires
-  * the following attributes:
-  *
-  *    attributes-charset
-  *    attributes-natural-language
-  *    job-uri or printer-uri
-  *    requested-attributes
-  *    requesting-user-name
-  */
-
-  request = ippNewRequest(id ? IPP_GET_JOB_ATTRIBUTES : IPP_GET_JOBS);
+  // Build an Get-Jobs or Get-Job-Attributes request, which requires the
+  // following attributes:
+  //
+  //   attributes-charset
+  //   attributes-natural-language
+  //   job-uri or printer-uri
+  //   requested-attributes
+  //   requesting-user-name
+  request = ippNewRequest(id ? IPP_OP_GET_JOB_ATTRIBUTES : IPP_OP_GET_JOBS);
 
   if (id)
   {
     snprintf(resource, sizeof(resource), "ipp://localhost/jobs/%d", id);
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri",
-                 NULL, resource);
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", NULL, resource);
   }
   else if (dest)
   {
-    httpAssembleURIf(HTTP_URI_CODING_ALL, resource, sizeof(resource), "ipp",
-                     NULL, "localhost", 0, "/printers/%s", dest);
+    httpAssembleURIf(HTTP_URI_CODING_ALL, resource, sizeof(resource), "ipp", NULL, "localhost", 0, "/printers/%s", dest);
 
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri",
-                 NULL, resource);
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, resource);
   }
   else
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri",
-                 NULL, "ipp://localhost/");
+  {
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, "ipp://localhost/");
+  }
 
   if (user)
   {
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-                 "requesting-user-name", NULL, user);
-    ippAddBoolean(request, IPP_TAG_OPERATION, "my-jobs", 1);
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", NULL, user);
+    ippAddBoolean(request, IPP_TAG_OPERATION, "my-jobs", true);
   }
   else
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-                 "requesting-user-name", NULL, cupsGetUser());
+  {
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", NULL, cupsGetUser());
+  }
 
-  ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD,
-                "requested-attributes",
-                (int)(sizeof(jobattrs) / sizeof(jobattrs[0])), NULL, jobattrs);
+  ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "requested-attributes", sizeof(jobattrs) / sizeof(jobattrs[0]), NULL, jobattrs);
 
- /*
-  * Do the request and get back a response...
-  */
-
+  // Do the request and get back a response...
   jobcount = 0;
 
   if ((response = cupsDoRequest(http, request, "/")) != NULL)
   {
-    if (response->request.status.status_code > IPP_OK_CONFLICT)
+    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
     {
       cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
       ippDelete(response);
@@ -413,18 +401,12 @@ show_jobs(const char *command,		// I - Command name
 
     rank = 1;
 
-   /*
-    * Loop through the job list and display them...
-    */
-
-    for (attr = response->attrs; attr != NULL; attr = attr->next)
+    // Loop through the job list and display them...
+    for (attr = ippGetFirstAttribute(response); attr != NULL; attr = ippGetNextAttribute(response))
     {
-     /*
-      * Skip leading attributes until we hit a job...
-      */
-
-      while (attr != NULL && attr->group_tag != IPP_TAG_JOB)
-        attr = attr->next;
+      // Skip leading attributes until we hit a job...
+      while (attr != NULL && ippGetGroupTag(attr) != IPP_TAG_JOB)
+        attr = ippGetNextAttribute(response);
 
       if (attr == NULL)
         break;
@@ -435,50 +417,45 @@ show_jobs(const char *command,		// I - Command name
 
       jobid       = 0;
       jobsize     = 0;
-      jobstate    = IPP_JOB_PENDING;
+      jobstate    = IPP_JSTATE_PENDING;
       jobname     = "unknown";
       jobuser     = "unknown";
       jobdest     = NULL;
       jobcopies   = 1;
 
-      while (attr != NULL && attr->group_tag == IPP_TAG_JOB)
+      while (attr != NULL && ippGetGroupTag(attr) == IPP_TAG_JOB)
       {
-        if (!strcmp(attr->name, "job-id") &&
-	    attr->value_tag == IPP_TAG_INTEGER)
-	  jobid = attr->values[0].integer;
+        const char *name = ippGetName(attr);
+        ipp_tag_t value_tag = ippGetValueTag(attr);
 
-        if (!strcmp(attr->name, "job-k-octets") &&
-	    attr->value_tag == IPP_TAG_INTEGER)
-	  jobsize = attr->values[0].integer;
+        if (!strcmp(name, "job-id") && value_tag == IPP_TAG_INTEGER)
+	  jobid = ippGetInteger(attr, 0);
 
-        if (!strcmp(attr->name, "job-state") &&
-	    attr->value_tag == IPP_TAG_ENUM)
-	  jobstate = (ipp_jstate_t)attr->values[0].integer;
+        if (!strcmp(name, "job-k-octets") && value_tag == IPP_TAG_INTEGER)
+	  jobsize = ippGetInteger(attr, 0);
 
-        if (!strcmp(attr->name, "job-printer-uri") &&
-	    attr->value_tag == IPP_TAG_URI)
-	  if ((jobdest = strrchr(attr->values[0].string.text, '/')) != NULL)
+        if (!strcmp(name, "job-state") && value_tag == IPP_TAG_ENUM)
+	  jobstate = (ipp_jstate_t)ippGetInteger(attr, 0);
+
+        if (!strcmp(name, "job-printer-uri") && value_tag == IPP_TAG_URI)
+        {
+	  if ((jobdest = strrchr(ippGetString(attr, 0, NULL), '/')) != NULL)
 	    jobdest ++;
+	}
 
-        if (!strcmp(attr->name, "job-originating-user-name") &&
-	    attr->value_tag == IPP_TAG_NAME)
-	  jobuser = attr->values[0].string.text;
+        if (!strcmp(name, "job-originating-user-name") && value_tag == IPP_TAG_NAME)
+	  jobuser = ippGetString(attr, 0, NULL);
 
-        if (!strcmp(attr->name, "job-name") &&
-	    attr->value_tag == IPP_TAG_NAME)
-	  jobname = attr->values[0].string.text;
+        if (!strcmp(name, "job-name") && value_tag == IPP_TAG_NAME)
+	  jobname = ippGetString(attr, 0, NULL);
 
-        if (!strcmp(attr->name, "copies") &&
-	    attr->value_tag == IPP_TAG_INTEGER)
-	  jobcopies = attr->values[0].integer;
+        if (!strcmp(name, "copies") && value_tag == IPP_TAG_INTEGER)
+	  jobcopies = ippGetInteger(attr, 0);
 
-        attr = attr->next;
+        attr = ippGetNextAttribute(response);
       }
 
-     /*
-      * See if we have everything needed...
-      */
-
+      // See if we have everything needed...
       if (jobdest == NULL || jobid == 0)
       {
         if (attr == NULL)
@@ -488,25 +465,19 @@ show_jobs(const char *command,		// I - Command name
       }
 
       if (!longstatus && jobcount == 0)
-	cupsLangPuts(stdout,
-	              _("Rank    Owner   Job     File(s)"
-		        "                         Total Size"));
+	cupsLangPuts(stdout, _("Rank    Owner   Job     File(s)                         Total Size"));
 
       jobcount ++;
 
-     /*
-      * Display the job...
-      */
-
-      if (jobstate == IPP_JOB_PROCESSING)
+      // Display the job...
+      if (jobstate == IPP_JSTATE_PROCESSING)
+      {
 	cupsCopyString(rankstr, "active", sizeof(rankstr));
+      }
       else
       {
-       /*
-        * Make the rank show the "correct" suffix for each number
-	* (11-13 are the only special cases, for English anyways...)
-	*/
-
+        // Make the rank show the "correct" suffix for each number (11-13 are
+        // the only special cases, for English anyways...)
 	if ((rank % 100) >= 11 && (rank % 100) <= 13)
 	  snprintf(rankstr, sizeof(rankstr), "%dth", rank);
 	else
@@ -520,20 +491,17 @@ show_jobs(const char *command,		// I - Command name
         cupsLangPuts(stdout, "\n");
 
         if (jobcopies > 1)
-	  snprintf(namestr, sizeof(namestr), "%d copies of %s", jobcopies,
-	           jobname);
+	  cupsLangFormatString(cupsLangDefault(), namestr, sizeof(namestr), _("%d copies of %s"), jobcopies, jobname);
 	else
 	  cupsCopyString(namestr, jobname, sizeof(namestr));
 
-        cupsLangPrintf(stdout, _("%s: %-33.33s [job %d localhost]"),
-	                jobuser, rankstr, jobid);
-        cupsLangPrintf(stdout, _("        %-39.39s %.0f bytes"),
-	                namestr, 1024.0 * jobsize);
+        cupsLangPrintf(stdout, _("%s: %-33.33s [job %d localhost]"), jobuser, rankstr, jobid);
+        cupsLangPrintf(stdout, _("        %-39.39s %.0f bytes"), namestr, 1024.0 * jobsize);
       }
       else
-        cupsLangPrintf(stdout,
-	                _("%-7s %-7.7s %-7d %-31.31s %.0f bytes"),
-			rankstr, jobuser, jobid, jobname, 1024.0 * jobsize);
+      {
+        cupsLangPrintf(stdout, _("%-7s %-7.7s %-7d %-31.31s %.0f bytes"), rankstr, jobuser, jobid, jobname, 1024.0 * jobsize);
+      }
 
       if (attr == NULL)
         break;
@@ -573,29 +541,21 @@ show_printer(const char *command,	// I - Command name
   if (http == NULL)
     return;
 
- /*
-  * Build an IPP_GET_PRINTER_ATTRIBUTES request, which requires the following
-  * attributes:
-  *
-  *    attributes-charset
-  *    attributes-natural-language
-  *    printer-uri
-  */
+  // Build Get-Printer-Attributes request, which requires the following
+  // attributes:
+  //
+  //   attributes-charset
+  //   attributes-natural-language
+  //   printer-uri
+  request = ippNewRequest(IPP_OP_GET_PRINTER_ATTRIBUTES);
 
-  request = ippNewRequest(IPP_GET_PRINTER_ATTRIBUTES);
+  httpAssembleURIf(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL, "localhost", 0, "/printers/%s", dest);
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, uri);
 
-  httpAssembleURIf(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,
-                   "localhost", 0, "/printers/%s", dest);
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI,
-               "printer-uri", NULL, uri);
-
- /*
-  * Do the request and get back a response...
-  */
-
+  // Do the request and get back a response...
   if ((response = cupsDoRequest(http, request, "/")) != NULL)
   {
-    if (response->request.status.status_code > IPP_OK_CONFLICT)
+    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
     {
       cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
       ippDelete(response);
@@ -603,20 +563,19 @@ show_printer(const char *command,	// I - Command name
     }
 
     if ((attr = ippFindAttribute(response, "printer-state", IPP_TAG_ENUM)) != NULL)
-      state = (ipp_pstate_t)attr->values[0].integer;
+      state = (ipp_pstate_t)ippGetInteger(attr, 0);
     else
-      state = IPP_PRINTER_STOPPED;
+      state = IPP_PSTATE_STOPPED;
 
     switch (state)
     {
-      case IPP_PRINTER_IDLE :
+      case IPP_PSTATE_IDLE :
           cupsLangPrintf(stdout, _("%s is ready"), dest);
 	  break;
-      case IPP_PRINTER_PROCESSING :
-          cupsLangPrintf(stdout, _("%s is ready and printing"),
-	                  dest);
+      case IPP_PSTATE_PROCESSING :
+          cupsLangPrintf(stdout, _("%s is ready and printing"), dest);
 	  break;
-      case IPP_PRINTER_STOPPED :
+      case IPP_PSTATE_STOPPED :
           cupsLangPrintf(stdout, _("%s is not ready"), dest);
 	  break;
     }
@@ -624,7 +583,9 @@ show_printer(const char *command,	// I - Command name
     ippDelete(response);
   }
   else
+  {
     cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
+  }
 }
 
 

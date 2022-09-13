@@ -10,7 +10,6 @@
 //
 
 #include "localize.h"
-#include <ctype.h>
 
 
 //

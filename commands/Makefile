@@ -64,7 +64,6 @@ clean:
 #
 
 depend:
-	$(CC) -MM $(CPPFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
@@ -236,4 +235,4 @@ lpstat:	lpstat.o
 # Dependencies...
 #
 
-include Dependencies
+$(OBJS):	localize.h

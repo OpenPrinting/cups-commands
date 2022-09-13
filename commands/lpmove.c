@@ -33,7 +33,7 @@ main(int  argc,				// I - Number of command-line arguments
   const char	*opt,			// Option pointer
 		*job;			// Job name
   int		jobid;			// Job ID
-  int		num_dests;		// Number of destinations
+  size_t	num_dests;		// Number of destinations
   cups_dest_t	*dests;			// Destinations
   const char	*src,			// Original queue
 		*dest;			// New destination
@@ -51,7 +51,9 @@ main(int  argc,				// I - Number of command-line arguments
   for (i = 1; i < argc; i ++)
   {
     if (!strcmp(argv[i], "--help"))
+    {
       usage();
+    }
     else if (argv[i][0] == '-')
     {
       for (opt = argv[i] + 1; *opt; opt ++)
@@ -59,12 +61,7 @@ main(int  argc,				// I - Number of command-line arguments
 	switch (*opt)
 	{
 	  case 'E' : // Encrypt
-#ifdef HAVE_TLS
 	      cupsSetEncryption(HTTP_ENCRYPTION_REQUIRED);
-
-#else
-	      cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), argv[0]);
-#endif // HAVE_TLS
 	      break;
 
 	  case 'h' : // Connect to host
@@ -96,19 +93,19 @@ main(int  argc,				// I - Number of command-line arguments
     else if (!jobid && !src)
     {
       if (num_dests == 0)
-        num_dests = cupsGetDests(&dests);
+        num_dests = cupsGetDests(CUPS_HTTP_DEFAULT, &dests);
 
-      if ((job = strrchr(argv[i], '-')) != NULL &&
-          cupsGetDest(argv[i], NULL, num_dests, dests) == NULL)
+      if ((job = strrchr(argv[i], '-')) != NULL && cupsGetDest(argv[i], NULL, num_dests, dests) == NULL)
         jobid = atoi(job + 1);
-      else if (isdigit(argv[i][0] & 255) &&
-               !cupsGetDest(argv[i], NULL, num_dests, dests))
+      else if (isdigit(argv[i][0] & 255) && !cupsGetDest(argv[i], NULL, num_dests, dests))
         jobid = atoi(argv[i]);
       else
         src = argv[i];
     }
     else if (dest == NULL)
+    {
       dest = argv[i];
+    }
     else
     {
       cupsLangPrintf(stderr, _("lpmove: Unknown argument \"%s\"."), argv[i]);
@@ -119,12 +116,11 @@ main(int  argc,				// I - Number of command-line arguments
   if ((!jobid && !src) || !dest)
     usage();
 
-  http = httpConnectEncrypt(cupsGetServer(), ippGetPort(), cupsGetEncryption());
+  http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
   if (http == NULL)
   {
-    cupsLangPrintf(stderr, _("lpmove: Unable to connect to server: %s"),
-		    strerror(errno));
+    cupsLangPrintf(stderr, _("lpmove: Unable to connect to server: %s"), strerror(errno));
     return (1);
   }
 
@@ -150,54 +146,44 @@ move_job(http_t     *http,		// I - HTTP connection to server
   if (!http)
     return (1);
 
- /*
-  * Build a CUPS_MOVE_JOB request, which requires the following
-  * attributes:
-  *
-  *    attributes-charset
-  *    attributes-natural-language
-  *    job-uri/printer-uri
-  *    job-printer-uri
-  *    requesting-user-name
-  */
-
-  request = ippNewRequest(CUPS_MOVE_JOB);
+  // Build a CUPS-Move-Job request, which requires the following
+  // attributes:
+  //
+  //   attributes-charset
+  //   attributes-natural-language
+  //   job-uri/printer-uri
+  //   job-printer-uri
+  //   requesting-user-name
+  request = ippNewRequest(IPP_OP_CUPS_MOVE_JOB);
 
   if (jobid)
   {
     snprintf(job_uri, sizeof(job_uri), "ipp://localhost/jobs/%d", jobid);
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", NULL,
-        	 job_uri);
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", NULL, job_uri);
   }
   else
   {
-    httpAssembleURIf(HTTP_URI_CODING_ALL, job_uri, sizeof(job_uri), "ipp", NULL,
-                     "localhost", 0, "/printers/%s", src);
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL,
-        	 job_uri);
+    httpAssembleURIf(HTTP_URI_CODING_ALL, job_uri, sizeof(job_uri), "ipp", NULL, "localhost", 0, "/printers/%s", src);
+    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, job_uri);
   }
 
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",
-               NULL, cupsGetUser());
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",  NULL, cupsGetUser());
 
-  httpAssembleURIf(HTTP_URI_CODING_ALL, printer_uri, sizeof(printer_uri),
-                   "ipp", NULL, "localhost", 0, "/printers/%s", dest);
-  ippAddString(request, IPP_TAG_JOB, IPP_TAG_URI, "job-printer-uri",
-               NULL, printer_uri);
+  httpAssembleURIf(HTTP_URI_CODING_ALL, printer_uri, sizeof(printer_uri), "ipp", NULL, "localhost", 0, "/printers/%s", dest);
+  ippAddString(request, IPP_TAG_JOB, IPP_TAG_URI, "job-printer-uri", NULL, printer_uri);
 
- /*
-  * Do the request and get back a response...
-  */
-
+  // Do the request and get back a response...
   ippDelete(cupsDoRequest(http, request, "/jobs"));
 
-  if (cupsLastError() > IPP_OK_CONFLICT)
+  if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
   {
     cupsLangPrintf(stderr, "lpmove: %s", cupsLastErrorString());
     return (1);
   }
   else
+  {
     return (0);
+  }
 }
 
 
@@ -209,7 +195,7 @@ static void
 usage(void)
 {
   cupsLangPuts(stdout, _("Usage: lpmove [options] job destination\n"
-                          "       lpmove [options] source-destination destination"));
+                         "       lpmove [options] source-destination destination"));
   cupsLangPuts(stdout, _("Options:"));
   cupsLangPuts(stdout, _("-E                      Encrypt the connection to the server"));
   cupsLangPuts(stdout, _("-h server[:port]        Connect to the named server and port"));

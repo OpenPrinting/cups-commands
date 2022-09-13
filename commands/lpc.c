@@ -40,7 +40,7 @@ main(int  argc,				// I - Number of command-line arguments
   * Connect to the scheduler...
   */
 
-  http = httpConnectEncrypt(cupsGetServer(), ippGetPort(), cupsGetEncryption());
+  http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
   if (argc > 1)
   {
@@ -76,7 +76,7 @@ main(int  argc,				// I - Number of command-line arguments
       for (params = line; isspace(*params & 255); params ++);
 
       if (params > line)
-        _cups_strcpy(line, params);
+        cupsCopyString(line, params, sizeof(line));
 
       if (!line[0])
       {
@@ -213,7 +213,7 @@ show_prompt(const char *message)	// I - Message string to use
   * Transcode to the destination charset and write the prompt...
   */
 
-  if ((bytes = cupsUTF8ToCharset(output, (cups_utf8_t *)cupsLangGetString(lang, message), sizeof(output), lang->encoding)) > 0)
+  if ((bytes = cupsUTF8ToCharset(output, cupsLangGetString(lang, message), sizeof(output), cupsLangGetEncoding())) > 0)
   {
     fwrite(output, 1, (size_t)bytes, stdout);
     fflush(stdout);
@@ -254,78 +254,55 @@ show_status(http_t     *http,		// I - HTTP connection to server
   if (http == NULL)
     return;
 
- /*
-  * Build a CUPS_GET_PRINTERS request, which requires the following
-  * attributes:
-  *
-  *    attributes-charset
-  *    attributes-natural-language
-  */
+  //
+  // Build a CUPS-Get-Printers request, which requires the following attributes:
+  //
+  //   attributes-charset
+  //   attributes-natural-language
+  request = ippNewRequest(IPP_OP_CUPS_GET_PRINTERS);
 
-  request = ippNewRequest(CUPS_GET_PRINTERS);
+  ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "requested-attributes", sizeof(requested) / sizeof(requested[0]), NULL, requested);
 
-  ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD,
-                "requested-attributes", sizeof(requested) / sizeof(requested[0]),
-		NULL, requested);
-
- /*
-  * Do the request and get back a response...
-  */
-
+  // Do the request and get back a response...
   if ((response = cupsDoRequest(http, request, "/")) != NULL)
   {
-   /*
-    * Loop through the printers returned in the list and display
-    * their status...
-    */
-
-    for (attr = response->attrs; attr != NULL; attr = attr->next)
+    // Loop through the printers returned in the list and display their status...
+    for (attr = ippGetFirstAttribute(response); attr != NULL; attr = ippGetNextAttribute(response))
     {
-     /*
-      * Skip leading attributes until we hit a job...
-      */
-
-      while (attr != NULL && attr->group_tag != IPP_TAG_PRINTER)
-        attr = attr->next;
+      // Skip leading attributes until we hit a job...
+      while (attr != NULL && ippGetGroupTag(attr) != IPP_TAG_PRINTER)
+        attr = ippGetNextAttribute(response);
 
       if (attr == NULL)
         break;
 
-     /*
-      * Pull the needed attributes from this job...
-      */
-
+      // Pull the needed attributes from this job...
       printer   = NULL;
       device    = "file:/dev/null";
       pstate    = IPP_PRINTER_IDLE;
       jobcount  = 0;
       accepting = 1;
 
-      while (attr != NULL && attr->group_tag == IPP_TAG_PRINTER)
+      while (attr != NULL && ippGetGroupTag(attr) == IPP_TAG_PRINTER)
       {
-        if (!strcmp(attr->name, "device-uri") &&
-	    attr->value_tag == IPP_TAG_URI)
-	  device = attr->values[0].string.text;
-        else if (!strcmp(attr->name, "printer-is-accepting-jobs") &&
-	         attr->value_tag == IPP_TAG_BOOLEAN)
-	  accepting = attr->values[0].boolean;
-        else if (!strcmp(attr->name, "printer-name") &&
-	         attr->value_tag == IPP_TAG_NAME)
-	  printer = attr->values[0].string.text;
-        else if (!strcmp(attr->name, "printer-state") &&
-	         attr->value_tag == IPP_TAG_ENUM)
-	  pstate = (ipp_pstate_t)attr->values[0].integer;
-        else if (!strcmp(attr->name, "queued-job-count") &&
-	         attr->value_tag == IPP_TAG_INTEGER)
-	  jobcount = attr->values[0].integer;
+        const char *name = ippGetName(attr);
+        ipp_tag_t value_tag = ippGetValueTag(attr);
 
-        attr = attr->next;
+        if (!strcmp(name, "device-uri") && value_tag == IPP_TAG_URI)
+	  device = ippGetString(attr, 0, NULL);
+        else if (!strcmp(name, "printer-is-accepting-jobs") && value_tag == IPP_TAG_BOOLEAN)
+	  accepting = ippGetBoolean(attr, 0);
+        else if (!strcmp(name, "printer-name") && value_tag == IPP_TAG_NAME)
+	  printer = ippGetString(attr, 0, NULL);
+        else if (!strcmp(name, "printer-state") && value_tag == IPP_TAG_ENUM)
+	  pstate = (ipp_pstate_t)ippGetInteger(attr, 0);
+        else if (!strcmp(name, "queued-job-count") && value_tag == IPP_TAG_INTEGER)
+	  jobcount = ippGetInteger(attr, 0);
+
+        attr = ippGetNextAttribute(response);
       }
 
-     /*
-      * See if we have everything needed...
-      */
-
+      // See if we have everything needed...
       if (printer == NULL)
       {
         if (attr == NULL)
@@ -334,53 +311,37 @@ show_status(http_t     *http,		// I - HTTP connection to server
           continue;
       }
 
-     /*
-      * A single 'all' printer name is special, meaning all printers.
-      */
-
+      // A single 'all' printer name is special, meaning all printers.
       if (dests != NULL && !strcmp(dests, "all"))
         dests = NULL;
 
-     /*
-      * See if this is a printer we're interested in...
-      */
-
+      // See if this is a printer we're interested in...
       match = dests == NULL;
 
       if (dests != NULL)
       {
         for (dptr = dests; *dptr != '\0';)
 	{
-	 /*
-	  * Skip leading whitespace and commas...
-	  */
-
+	  // Skip leading whitespace and commas...
 	  while (isspace(*dptr & 255) || *dptr == ',')
 	    dptr ++;
 
 	  if (*dptr == '\0')
 	    break;
 
-         /*
-	  * Compare names...
-	  */
+          // Compare names...
+	  for (ptr = printer; *ptr != '\0' && *dptr != '\0' && *ptr == *dptr; ptr ++, dptr ++)
+	  {
+	    // do nothing
+	  }
 
-	  for (ptr = printer;
-	       *ptr != '\0' && *dptr != '\0' && *ptr == *dptr;
-	       ptr ++, dptr ++)
-	    // do nothing;
-
-          if (*ptr == '\0' && (*dptr == '\0' || *dptr == ',' ||
-	                       isspace(*dptr & 255)))
+          if (*ptr == '\0' && (*dptr == '\0' || *dptr == ',' || isspace(*dptr & 255)))
 	  {
 	    match = 1;
 	    break;
 	  }
 
-         /*
-	  * Skip trailing junk...
-	  */
-
+          // Skip trailing junk...
           while (!isspace(*dptr & 255) && *dptr != '\0')
 	    dptr ++;
 	  while (isspace(*dptr & 255) || *dptr == ',')
@@ -391,33 +352,22 @@ show_status(http_t     *http,		// I - HTTP connection to server
         }
       }
 
-     /*
-      * Display the printer entry if needed...
-      */
-
+      // Display the printer entry if needed...
       if (match)
       {
-       /*
-        * Display it...
-	*/
-
+        // Display it...
         printf("%s:\n", printer);
 	if (!strncmp(device, "file:", 5))
-	  cupsLangPrintf(stdout,
-	                  _("\tprinter is on device \'%s\' speed -1"),
-			  device + 5);
+	{
+	  cupsLangPrintf(stdout, _("\tprinter is on device \'%s\' speed -1"), device + 5);
+	}
 	else
 	{
-	 /*
-	  * Just show the scheme...
-	  */
-
-	  if ((delimiter = strchr(device, ':')) != NULL )
+	  // Just show the scheme...
+	  if ((delimiter = strchr(device, ':')) != NULL)
 	  {
 	    *delimiter = '\0';
-	    cupsLangPrintf(stdout,
-	                    _("\tprinter is on device \'%s\' speed -1"),
-			    device);
+	    cupsLangPrintf(stdout, _("\tprinter is on device \'%s\' speed -1"), device);
 	  }
 	}
 

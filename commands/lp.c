@@ -10,6 +10,11 @@
 //
 
 #include "localize.h"
+#include <unistd.h>
+#include <fcntl.h>
+#ifndef O_BINARY
+#  define O_BINARY 0
+#endif // !O_BINARY
 
 
 //
@@ -40,12 +45,16 @@ main(int  argc,				// I - Number of command-line arguments
   int		num_copies;		// Number of copies per file
   int		num_files;		// Number of files to print
   const char	*files[1000];		// Files to print
-  cups_dest_t	*dest;			// Selected destination
-  int		num_options;		// Number of options
+  cups_dest_t	*dest = NULL;		// Selected destination
+  cups_dinfo_t	*dinfo;			// Destination information
+  size_t	num_options;		// Number of options
   cups_option_t	*options;		// Options
-  int		end_options;		// No more options?
-  int		silent;			// Silent or verbose output?
+  bool		end_options;		// No more options?
+  bool		silent;			// Silent or verbose output?
   char		buffer[8192];		// Copy buffer
+  http_status_t	status;			// Write status
+  const char	*format;		// Document format
+  ssize_t	bytes;			// Bytes read
 
 
 #ifdef __sun
@@ -68,7 +77,7 @@ main(int  argc,				// I - Number of command-line arguments
 
   localize_init(argv);
 
-  silent      = 0;
+  silent      = false;
   printer     = NULL;
   dest        = NULL;
   num_options = 0;
@@ -76,12 +85,14 @@ main(int  argc,				// I - Number of command-line arguments
   num_files   = 0;
   title       = NULL;
   job_id      = 0;
-  end_options = 0;
+  end_options = false;
 
   for (i = 1; i < argc; i ++)
   {
     if (!strcmp(argv[i], "--help"))
+    {
       usage();
+    }
     else if (argv[i][0] == '-' && argv[i][1] && !end_options)
     {
       for (opt = argv[i] + 1; *opt; opt ++)
@@ -89,11 +100,7 @@ main(int  argc,				// I - Number of command-line arguments
         switch (*opt)
 	{
 	  case 'E' : // Encrypt
-#ifdef HAVE_TLS
 	      cupsSetEncryption(HTTP_ENCRYPTION_REQUIRED);
-#else
-	      cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), argv[0]);
-#endif // HAVE_TLS
 	      break;
 
 	  case 'U' : // Username
@@ -140,28 +147,22 @@ main(int  argc,				// I - Number of command-line arguments
 	      if ((instance = strrchr(printer, '/')) != NULL)
 		*instance++ = '\0';
 
-	      if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, printer,
-					   instance)) != NULL)
+	      if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, printer, instance)) != NULL)
 	      {
 		for (j = 0; j < dest->num_options; j ++)
-		  if (cupsGetOption(dest->options[j].name, num_options,
-				    options) == NULL)
-		    num_options = cupsAddOption(dest->options[j].name,
-						dest->options[j].value,
-						num_options, &options);
+		{
+		  if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
+		    num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+		}
 	      }
-	      else if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST ||
-		       cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
+	      else if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST || cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
 	      {
-		cupsLangPrintf(stderr,
-				_("%s: Error - add '/version=1.1' to server "
-				  "name."), argv[0]);
+		cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), argv[0]);
 		return (1);
 	      }
 	      else if (cupsLastError() == IPP_STATUS_ERROR_NOT_FOUND)
 	      {
-		cupsLangPrintf(stderr,
-				_("%s: Error - The printer or class does not exist."), argv[0]);
+		cupsLangPrintf(stderr, _("%s: Error - The printer or class does not exist."), argv[0]);
 		return (1);
 	      }
 	      break;
@@ -255,7 +256,7 @@ main(int  argc,				// I - Number of command-line arguments
 		num_options = cupsAddOption("notify-recipient-uri", email, num_options, &options);
 	      }
 
-	      silent = 1;
+	      silent = true;
 	      break;
 
 	  case 'n' : // Number of copies
@@ -328,15 +329,12 @@ main(int  argc,				// I - Number of command-line arguments
 		priority = atoi(argv[i]);
 	      }
 
-	     /*
-	      * For 100% Solaris compatibility, need to add:
-	      *
-	      *   priority = 99 * (39 - priority) / 39 + 1;
-	      *
-	      * However, to keep CUPS lp the same across all platforms
-	      * we will break compatibility this far...
-	      */
-
+	      // For 100% Solaris compatibility, need to add:
+	      //
+	      //   priority = 99 * (39 - priority) / 39 + 1;
+	      //
+	      // However, to keep CUPS lp the same across all platforms
+	      // we will break compatibility this far...
 	      if (priority < 1 || priority > 100)
 	      {
 		cupsLangPrintf(stderr, _("%s: Error - priority must be between 1 and 100."), argv[0]);
@@ -347,7 +345,7 @@ main(int  argc,				// I - Number of command-line arguments
 	      break;
 
 	  case 's' : // Silent
-	      silent = 1;
+	      silent = true;
 	      break;
 
 	  case 't' : // Title
@@ -499,7 +497,7 @@ main(int  argc,				// I - Number of command-line arguments
 		usage();
 	      }
 
-	      end_options = 1;
+	      end_options = true;
 	      break;
 
 	  default :
@@ -522,10 +520,7 @@ main(int  argc,				// I - Number of command-line arguments
     }
     else if (num_files < 1000 && job_id == 0)
     {
-     /*
-      * Print a file...
-      */
-
+      // Print a file...
       if (access(argv[i], R_OK) != 0)
       {
         cupsLangPrintf(stderr, _("%s: Error - unable to access \"%s\" - %s"), argv[0], argv[i], strerror(errno));
@@ -549,85 +544,130 @@ main(int  argc,				// I - Number of command-line arguments
     }
   }
 
- /*
-  * See if we are altering an existing job...
-  */
-
+  // See if we are altering an existing job...
   if (job_id)
     return (set_job_attrs(argv[0], job_id, num_options, options));
 
- /*
-  * See if we have any files to print; if not, print from stdin...
-  */
-
-  if (printer == NULL)
+  // Get the destination...
+  if (!dest)
   {
-    if ((dest = cupsGetNamedDest(NULL, NULL, NULL)) != NULL)
+    if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, /*printer*/NULL, /*instance*/NULL)) != NULL)
     {
-      printer = dest->name;
-
       for (j = 0; j < dest->num_options; j ++)
+      {
 	if (cupsGetOption(dest->options[j].name, num_options, options) == NULL)
-	  num_options = cupsAddOption(dest->options[j].name,
-		                      dest->options[j].value,
-				      num_options, &options);
+	  num_options = cupsAddOption(dest->options[j].name, dest->options[j].value, num_options, &options);
+      }
     }
-    else if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST ||
-	     cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
+    else if (cupsLastError() == IPP_STATUS_ERROR_NOT_FOUND)
     {
-      cupsLangPrintf(stderr,
-		      _("%s: Error - add '/version=1.1' to server "
-			"name."), argv[0]);
+      cupsLangPrintf(stderr, _("%s: Error - %s"), argv[0], cupsLastErrorString());
+      return (1);
+    }
+    else if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST || cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
+    {
+      cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), argv[0]);
+      return (1);
+    }
+    else
+    {
+      cupsLangPrintf(stderr, _("%s: Error - scheduler not responding."), argv[0]);
       return (1);
     }
   }
 
-  if (printer == NULL)
-  {
-    if (!cupsGetNamedDest(NULL, NULL, NULL) && cupsLastError() == IPP_STATUS_ERROR_NOT_FOUND)
-      cupsLangPrintf(stderr, _("%s: Error - %s"), argv[0], cupsLastErrorString());
-    else
-      cupsLangPrintf(stderr, _("%s: Error - scheduler not responding."), argv[0]);
+  dinfo = cupsCopyDestInfo(CUPS_HTTP_DEFAULT, dest);
 
+  // Title...
+  if (!title)
+  {
+    if (num_files == 0)
+    {
+      title = "(stdin)";
+    }
+    else if (num_files == 1)
+    {
+      if ((title = strrchr(files[0], '/')) != NULL)
+        title ++;
+    }
+  }
+
+  // Create the job...
+  if (cupsCreateDestJob(CUPS_HTTP_DEFAULT, dest, dinfo, &job_id, title, num_options, options) > IPP_STATUS_OK_EVENTS_COMPLETE)
+  {
+    cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
     return (1);
   }
 
+  if (cupsGetOption("raw", num_options, options))
+    format = CUPS_FORMAT_RAW;
+  else if ((format = cupsGetOption("document-format", num_options, options)) == NULL)
+    format = CUPS_FORMAT_AUTO;
+
+  // See if we have any files to print; if not, print from stdin...
   if (num_files > 0)
-    job_id = cupsPrintFiles(printer, num_files, files, title, num_options, options);
-  else if ((job_id = cupsCreateJob(CUPS_HTTP_DEFAULT, printer,
-                                   title ? title : "(stdin)",
-                                   num_options, options)) > 0)
   {
-    http_status_t	status;		// Write status
-    const char		*format;	// Document format
-    ssize_t		bytes;		// Bytes read
+    // Print file(s)...
+    for (i = 0; i < num_files; i ++)
+    {
+      int	fd;			// File descriptor
+      const char *docname;		// Document name
 
-    if (cupsGetOption("raw", num_options, options))
-      format = CUPS_FORMAT_RAW;
-    else if ((format = cupsGetOption("document-format", num_options,
-                                     options)) == NULL)
-      format = CUPS_FORMAT_AUTO;
+      if ((fd = open(files[i], O_RDONLY | O_BINARY)) < 0)
+      {
+        cupsLangPrintf(stderr, _("%s: Unable to open \"%s\" - %s"), argv[0], files[i], strerror(errno));
+	cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
+	return (1);
+      }
 
-    status = cupsStartDocument(CUPS_HTTP_DEFAULT, printer, job_id, NULL,
-                               format, 1);
+      if ((docname = strrchr(files[i], '/')) != NULL)
+        docname ++;
+      else
+        docname = files[i];
 
-    while (status == HTTP_CONTINUE &&
-           (bytes = read(0, buffer, sizeof(buffer))) > 0)
+      status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, docname, format, (i + 1) == num_files);
+
+      while (status == HTTP_CONTINUE && (bytes = read(fd, buffer, sizeof(buffer))) > 0)
+	status = cupsWriteRequestData(CUPS_HTTP_DEFAULT, buffer, (size_t)bytes);
+
+      close(fd);
+
+      if (status != HTTP_CONTINUE)
+      {
+	cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], files[i], httpStatus(status));
+	cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo);
+	cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
+	return (1);
+      }
+
+      if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_OK)
+      {
+	cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
+	cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
+	return (1);
+      }
+    }
+  }
+  else
+  {
+    // Print stdin...
+    status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, "(stdin)", format, true);
+
+    while (status == HTTP_CONTINUE && (bytes = read(0, buffer, sizeof(buffer))) > 0)
       status = cupsWriteRequestData(CUPS_HTTP_DEFAULT, buffer, (size_t)bytes);
 
     if (status != HTTP_CONTINUE)
     {
-      cupsLangPrintf(stderr, _("%s: Error - unable to queue from stdin - %s."),
-		      argv[0], httpStatus(status));
-      cupsFinishDocument(CUPS_HTTP_DEFAULT, printer);
-      cupsCancelJob2(CUPS_HTTP_DEFAULT, printer, job_id, 0);
+      cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], "(stdin)", httpStatus(status));
+      cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo);
+      cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
       return (1);
     }
 
-    if (cupsFinishDocument(CUPS_HTTP_DEFAULT, printer) != IPP_OK)
+    if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_OK)
     {
       cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
-      cupsCancelJob2(CUPS_HTTP_DEFAULT, printer, job_id, 0);
+      cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
       return (1);
     }
   }
@@ -638,8 +678,9 @@ main(int  argc,				// I - Number of command-line arguments
     return (1);
   }
   else if (!silent)
-    cupsLangPrintf(stdout, _("request id is %s-%d (%d file(s))"),
-		    printer, job_id, num_files);
+  {
+    cupsLangPrintf(stdout, _("request id is %s-%d (%d file(s))"), dest->name, job_id, num_files);
+  }
 
   return (0);
 }
@@ -658,30 +699,22 @@ restart_job(const char *command,	// I - Command name
   char		uri[HTTP_MAX_URI];	// URI for job
 
 
-  request = ippNewRequest(IPP_RESTART_JOB);
+  request = ippNewRequest(IPP_OP_RESTART_JOB);
 
   snprintf(uri, sizeof(uri), "ipp://localhost/jobs/%d", job_id);
-
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI,
-               "job-uri", NULL, uri);
-
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-               "requesting-user-name", NULL, cupsGetUser());
-
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", NULL, uri);
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", NULL, cupsGetUser());
   if (job_hold_until)
     ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "job-hold-until", NULL, job_hold_until);
 
   ippDelete(cupsDoRequest(CUPS_HTTP_DEFAULT, request, "/jobs"));
 
-  if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST ||
-      cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
+  if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST || cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
   {
-    cupsLangPrintf(stderr,
-		    _("%s: Error - add '/version=1.1' to server "
-		      "name."), command);
+    cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), command);
     return (1);
   }
-  else if (cupsLastError() > IPP_OK_CONFLICT)
+  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
   {
     cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
     return (1);
@@ -709,29 +742,21 @@ set_job_attrs(
   if (num_options == 0)
     return (0);
 
-  request = ippNewRequest(IPP_SET_JOB_ATTRIBUTES);
+  request = ippNewRequest(IPP_OP_SET_JOB_ATTRIBUTES);
 
   snprintf(uri, sizeof(uri), "ipp://localhost/jobs/%d", job_id);
-
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI,
-               "job-uri", NULL, uri);
-
-  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
-               "requesting-user-name", NULL, cupsGetUser());
-
-  cupsEncodeOptions(request, num_options, options);
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", NULL, uri);
+  ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", NULL, cupsGetUser());
+  cupsEncodeOptions(request, num_options, options, IPP_TAG_JOB);
 
   ippDelete(cupsDoRequest(CUPS_HTTP_DEFAULT, request, "/jobs"));
 
-  if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST ||
-      cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
+  if (cupsLastError() == IPP_STATUS_ERROR_BAD_REQUEST || cupsLastError() == IPP_STATUS_ERROR_VERSION_NOT_SUPPORTED)
   {
-    cupsLangPrintf(stderr,
-		    _("%s: Error - add '/version=1.1' to server "
-		      "name."), command);
+    cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), command);
     return (1);
   }
-  else if (cupsLastError() > IPP_OK_CONFLICT)
+  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
   {
     cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
     return (1);
@@ -749,7 +774,7 @@ static void
 usage(void)
 {
   cupsLangPuts(stdout, _("Usage: lp [options] [--] [file(s)]\n"
-                          "       lp [options] -i id"));
+                         "       lp [options] -i id"));
   cupsLangPuts(stdout, _("Options:"));
   cupsLangPuts(stdout, _("-c                      Make a copy of the print file(s)"));
   cupsLangPuts(stdout, _("-d destination          Specify the destination"));

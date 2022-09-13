@@ -77,7 +77,7 @@ main(int  argc,				// I - Number of command-line arguments
 	  case 'c' : // Add printer to class
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -127,7 +127,7 @@ main(int  argc,				// I - Number of command-line arguments
 	  case 'd' : // Set as default destination
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -248,7 +248,7 @@ main(int  argc,				// I - Number of command-line arguments
 
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -331,7 +331,7 @@ main(int  argc,				// I - Number of command-line arguments
 	  case 'r' : // Remove printer from class
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -381,7 +381,7 @@ main(int  argc,				// I - Number of command-line arguments
 	  case 'R' : // Remove option
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -458,9 +458,9 @@ main(int  argc,				// I - Number of command-line arguments
 		val = argv[i];
 	      }
 
-	      if (!_cups_strncasecmp(val, "allow:", 6))
+	      if (!strncasecmp(val, "allow:", 6))
 		num_options = cupsAddOption("requesting-user-name-allowed", val + 6, num_options, &options);
-	      else if (!_cups_strncasecmp(val, "deny:", 5))
+	      else if (!strncasecmp(val, "deny:", 5))
 		num_options = cupsAddOption("requesting-user-name-denied", val + 5, num_options, &options);
 	      else
 	      {
@@ -492,7 +492,7 @@ main(int  argc,				// I - Number of command-line arguments
 	  case 'x' : // Delete a printer
 	      if (!http)
 	      {
-		http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC, cupsGetEncryption(), 1, 30000, NULL);
+		http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
 		if (http == NULL)
 		{
@@ -637,10 +637,10 @@ main(int  argc,				// I - Number of command-line arguments
 
     if (!http)
     {
-      http = httpConnect2(cupsGetServer(), ippGetPort(), NULL, AF_UNSPEC,
-                          cupsGetEncryption(), 1, 30000, NULL);
+      http = httpConnect(cupsGetServer(), ippGetPort(), /*addrlist*/NULL, AF_UNSPEC, cupsGetEncryption(), /*blocking*/true, /*msec*/30000, /*cancel*/NULL);
 
-      if (http == NULL) {
+      if (http == NULL)
+      {
         cupsLangPrintf(stderr, _("lpadmin: Unable to connect to server: %s"),
                         strerror(errno));
         return (1);
@@ -734,7 +734,7 @@ add_printer_to_class(http_t *http,	// I - Server connection
       (members = ippFindAttribute(response, "member-names",
                                   IPP_TAG_NAME)) != NULL)
     for (i = 0; i < members->num_values; i ++)
-      if (_cups_strcasecmp(printer, members->values[i].string.text) == 0)
+      if (strcasecmp(printer, members->values[i].string.text) == 0)
       {
         cupsLangPrintf(stderr,
 	                _("lpadmin: Printer %s is already a member of class "
@@ -928,7 +928,7 @@ delete_printer_from_class(
   */
 
   if ((response = cupsDoRequest(http, request, "/classes/")) == NULL ||
-      response->request.status.status_code == IPP_STATUS_ERROR_NOT_FOUND)
+      ippGetStatusCode(response) == IPP_STATUS_ERROR_NOT_FOUND)
   {
     cupsLangPrintf(stderr, _("%s: %s"), "lpadmin", cupsLastErrorString());
 
@@ -951,7 +951,7 @@ delete_printer_from_class(
   }
 
   for (i = 0; i < members->num_values; i ++)
-    if (!_cups_strcasecmp(printer, members->values[i].string.text))
+    if (!strcasecmp(printer, members->values[i].string.text))
       break;
 
   if (i >= members->num_values)
@@ -1189,7 +1189,7 @@ get_printer_type(http_t *http,		// I - Server connection
   if ((attr = ippFindAttribute(response, "printer-type",
                                IPP_TAG_ENUM)) != NULL)
   {
-    type = (cups_ptype_t)attr->values[0].integer;
+    type = (cups_ptype_t)ippGetInteger(attr, 0);
 
     if (type & CUPS_PRINTER_CLASS)
       httpAssembleURIf(HTTP_URI_CODING_ALL, uri, (int)urisize, "ipp", NULL, "localhost", ippGetPort(), "/classes/%s", printer);
@@ -1299,10 +1299,10 @@ set_printer_options(
 
   if ((protocol = cupsGetOption("protocol", num_options, options)) != NULL)
   {
-    if (!_cups_strcasecmp(protocol, "bcp"))
+    if (!strcasecmp(protocol, "bcp"))
       ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_NAME, "port-monitor",
                    NULL, "bcp");
-    else if (!_cups_strcasecmp(protocol, "tbcp"))
+    else if (!strcasecmp(protocol, "tbcp"))
       ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_NAME, "port-monitor",
                    NULL, "tbcp");
   }
@@ -1349,9 +1349,9 @@ set_printer_options(
         ppdchanged         = 1;
         wrote_ipp_supplies = 1;
         cupsFilePrintf(out, "*cupsIPPSupplies: %s\n",
-	               (!_cups_strcasecmp(boolval, "true") ||
-		        !_cups_strcasecmp(boolval, "yes") ||
-		        !_cups_strcasecmp(boolval, "on")) ? "True" : "False");
+	               (!strcasecmp(boolval, "true") ||
+		        !strcasecmp(boolval, "yes") ||
+		        !strcasecmp(boolval, "on")) ? "True" : "False");
       }
       else if (!strncmp(line, "*cupsSNMPSupplies:", 18) &&
 	       (boolval = cupsGetOption("cupsSNMPSupplies", num_options,
@@ -1360,9 +1360,9 @@ set_printer_options(
         ppdchanged          = 1;
         wrote_snmp_supplies = 1;
         cupsFilePrintf(out, "*cupsSNMPSupplies: %s\n",
-	               (!_cups_strcasecmp(boolval, "true") ||
-		        !_cups_strcasecmp(boolval, "yes") ||
-		        !_cups_strcasecmp(boolval, "on")) ? "True" : "False");
+	               (!strcasecmp(boolval, "true") ||
+		        !strcasecmp(boolval, "yes") ||
+		        !strcasecmp(boolval, "on")) ? "True" : "False");
       }
       else if (strncmp(line, "*Default", 8))
         cupsFilePrintf(out, "%s\n", line);
@@ -1421,9 +1421,9 @@ set_printer_options(
       ppdchanged = 1;
 
       cupsFilePrintf(out, "*cupsIPPSupplies: %s\n",
-		     (!_cups_strcasecmp(boolval, "true") ||
-		      !_cups_strcasecmp(boolval, "yes") ||
-		      !_cups_strcasecmp(boolval, "on")) ? "True" : "False");
+		     (!strcasecmp(boolval, "true") ||
+		      !strcasecmp(boolval, "yes") ||
+		      !strcasecmp(boolval, "on")) ? "True" : "False");
     }
 
     if (!wrote_snmp_supplies &&
@@ -1433,9 +1433,9 @@ set_printer_options(
       ppdchanged = 1;
 
       cupsFilePrintf(out, "*cupsSNMPSupplies: %s\n",
-		     (!_cups_strcasecmp(boolval, "true") ||
-		      !_cups_strcasecmp(boolval, "yes") ||
-		      !_cups_strcasecmp(boolval, "on")) ? "True" : "False");
+		     (!strcasecmp(boolval, "true") ||
+		      !strcasecmp(boolval, "yes") ||
+		      !strcasecmp(boolval, "on")) ? "True" : "False");
     }
 
     cupsFileClose(in);
