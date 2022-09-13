@@ -12,10 +12,7 @@ include ../Makedefs
 
 TARGETS	=	\
 		cancel \
-		cupsaccept \
 		lp \
-		lpadmin \
-		lpc \
 		lpmove \
 		lpoptions \
 		lpq \
@@ -24,10 +21,7 @@ TARGETS	=	\
 		lpstat
 OBJS	=	\
 		cancel.o \
-		cupsaccept.o \
 		lp.o \
-		lpadmin.o \
-		lpc.o \
 		lpmove.o \
 		lpoptions.o \
 		lpq.o \
@@ -73,16 +67,16 @@ depend:
 install:
 	echo Installing admin commands to $(BUILDROOT)$(sbindir)
 	$(INSTALL_DIR) -m 755 $(BUILDROOT)$(sbindir)
-	$(INSTALL_BIN) cupsaccept $(BUILDROOT)$(sbindir)
-	$(INSTALL_BIN) lpadmin $(BUILDROOT)$(sbindir)
-	$(INSTALL_BIN) lpc $(BUILDROOT)$(sbindir)
+#	$(INSTALL_BIN) cupsaccept $(BUILDROOT)$(sbindir)
+#	$(INSTALL_BIN) lpadmin $(BUILDROOT)$(sbindir)
+#	$(INSTALL_BIN) lpc $(BUILDROOT)$(sbindir)
 	$(INSTALL_BIN) lpmove $(BUILDROOT)$(sbindir)
-	$(RM) $(BUILDROOT)$(sbindir)/cupsdisable
-	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsdisable
-	$(RM) $(BUILDROOT)$(sbindir)/cupsenable
-	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsenable
-	$(RM) $(BUILDROOT)$(sbindir)/cupsreject
-	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsreject
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsdisable
+#	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsdisable
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsenable
+#	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsenable
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsreject
+#	$(LN) cupsaccept $(BUILDROOT)$(sbindir)/cupsreject
 	echo Installing user commands tp $(BUILDROOT)$(bindir)
 	$(INSTALL_DIR) -m 755 $(BUILDROOT)$(bindir)
 	$(INSTALL_BIN) cancel $(BUILDROOT)$(bindir)
@@ -107,12 +101,12 @@ uninstall:
 	$(RM) $(BUILDROOT)$(bindir)/lprm
 	$(RM) $(BUILDROOT)$(bindir)/lpstat
 	-$(RMDIR) $(BUILDROOT)$(bindir)
-	$(RM) $(BUILDROOT)$(sbindir)/cupsaccept
-	$(RM) $(BUILDROOT)$(sbindir)/cupsdisable
-	$(RM) $(BUILDROOT)$(sbindir)/cupsenable
-	$(RM) $(BUILDROOT)$(sbindir)/cupsreject
-	$(RM) $(BUILDROOT)$(sbindir)/lpadmin
-	$(RM) $(BUILDROOT)$(sbindir)/lpc
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsaccept
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsdisable
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsenable
+#	$(RM) $(BUILDROOT)$(sbindir)/cupsreject
+#	$(RM) $(BUILDROOT)$(sbindir)/lpadmin
+#	$(RM) $(BUILDROOT)$(sbindir)/lpc
 	$(RM) $(BUILDROOT)$(sbindir)/lpmove
 	-$(RMDIR) $(BUILDROOT)$(sbindir)
 

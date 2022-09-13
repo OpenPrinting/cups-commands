@@ -625,22 +625,22 @@ main(int  argc,				// I - Number of command-line arguments
       else
         docname = files[i];
 
-      status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, docname, format, (i + 1) == num_files);
+      status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, docname, format, /*num_options*/0, /*options*/NULL, (i + 1) == num_files);
 
-      while (status == HTTP_CONTINUE && (bytes = read(fd, buffer, sizeof(buffer))) > 0)
+      while (status == HTTP_STATUS_CONTINUE && (bytes = read(fd, buffer, sizeof(buffer))) > 0)
 	status = cupsWriteRequestData(CUPS_HTTP_DEFAULT, buffer, (size_t)bytes);
 
       close(fd);
 
-      if (status != HTTP_CONTINUE)
+      if (status != HTTP_STATUS_CONTINUE)
       {
-	cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], files[i], httpStatus(status));
+	cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], files[i], httpStatusString(status));
 	cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo);
 	cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
 	return (1);
       }
 
-      if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_OK)
+      if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_STATUS_OK)
       {
 	cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
 	cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
@@ -651,20 +651,20 @@ main(int  argc,				// I - Number of command-line arguments
   else
   {
     // Print stdin...
-    status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, "(stdin)", format, true);
+    status = cupsStartDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo, job_id, "(stdin)", format, /*num_options*/0, /*options*/NULL, true);
 
-    while (status == HTTP_CONTINUE && (bytes = read(0, buffer, sizeof(buffer))) > 0)
+    while (status == HTTP_STATUS_CONTINUE && (bytes = read(0, buffer, sizeof(buffer))) > 0)
       status = cupsWriteRequestData(CUPS_HTTP_DEFAULT, buffer, (size_t)bytes);
 
-    if (status != HTTP_CONTINUE)
+    if (status != HTTP_STATUS_CONTINUE)
     {
-      cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], "(stdin)", httpStatus(status));
+      cupsLangPrintf(stderr, _("%s: Error - unable to queue %s - %s."), argv[0], "(stdin)", httpStatusString(status));
       cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo);
       cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
       return (1);
     }
 
-    if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_OK)
+    if (cupsFinishDestDocument(CUPS_HTTP_DEFAULT, dest, dinfo) != IPP_STATUS_OK)
     {
       cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
       cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id);
@@ -714,7 +714,7 @@ restart_job(const char *command,	// I - Command name
     cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), command);
     return (1);
   }
-  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING)
   {
     cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
     return (1);
@@ -756,7 +756,7 @@ set_job_attrs(
     cupsLangPrintf(stderr, _("%s: Error - add '/version=1.1' to server name."), command);
     return (1);
   }
-  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+  else if (cupsLastError() > IPP_STATUS_OK_CONFLICTING)
   {
     cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
     return (1);

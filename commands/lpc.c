@@ -232,9 +232,8 @@ show_status(http_t     *http,		// I - HTTP connection to server
   ipp_t		*request,		// IPP Request
 		*response;		// IPP Response
   ipp_attribute_t *attr;		// Current attribute
-  char		*printer,		// Printer name
-		*device,		// Device URI
-                *delimiter;		// Char search result
+  const char	*printer,		// Printer name
+		*device;		// Device URI
   ipp_pstate_t	pstate;			// Printer state
   int		accepting;		// Is printer accepting jobs?
   int		jobcount;		// Count of current jobs
@@ -279,7 +278,7 @@ show_status(http_t     *http,		// I - HTTP connection to server
       // Pull the needed attributes from this job...
       printer   = NULL;
       device    = "file:/dev/null";
-      pstate    = IPP_PRINTER_IDLE;
+      pstate    = IPP_PSTATE_IDLE;
       jobcount  = 0;
       accepting = 1;
 
@@ -364,11 +363,13 @@ show_status(http_t     *http,		// I - HTTP connection to server
 	else
 	{
 	  // Just show the scheme...
-	  if ((delimiter = strchr(device, ':')) != NULL)
-	  {
-	    *delimiter = '\0';
-	    cupsLangPrintf(stdout, _("\tprinter is on device \'%s\' speed -1"), device);
-	  }
+	  char scheme[32], *sptr;	// Scheme
+
+          cupsCopyString(scheme, device, sizeof(scheme));
+	  if ((sptr = strchr(scheme, ':')) != NULL)
+	    *sptr = '\0';
+
+	  cupsLangPrintf(stdout, _("\tprinter is on device \'%s\' speed -1"), scheme);
 	}
 
         if (accepting)
@@ -376,7 +377,7 @@ show_status(http_t     *http,		// I - HTTP connection to server
 	else
 	  cupsLangPuts(stdout, _("\tqueuing is disabled"));
 
-        if (pstate != IPP_PRINTER_STOPPED)
+        if (pstate != IPP_PSTATE_STOPPED)
 	  cupsLangPuts(stdout, _("\tprinting is enabled"));
 	else
 	  cupsLangPuts(stdout, _("\tprinting is disabled"));

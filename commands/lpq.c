@@ -392,7 +392,7 @@ show_jobs(const char *command,		// I - Command name
 
   if ((response = cupsDoRequest(http, request, "/")) != NULL)
   {
-    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING)
     {
       cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
       ippDelete(response);
@@ -555,7 +555,7 @@ show_printer(const char *command,	// I - Command name
   // Do the request and get back a response...
   if ((response = cupsDoRequest(http, request, "/")) != NULL)
   {
-    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+    if (ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING)
     {
       cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
       ippDelete(response);

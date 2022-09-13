@@ -181,7 +181,7 @@ main(int  argc,				// I - Number of command-line arguments
       // Do the request and get back a response...
       ippDelete(cupsDoRequest(CUPS_HTTP_DEFAULT, request, "/admin/"));
 
-      if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+      if (cupsLastError() > IPP_STATUS_OK_CONFLICTING)
       {
 	cupsLangPrintf(stderr, _("%s: Operation failed: %s"), command, ippErrorString(cupsLastError()));
 	return (1);
@@ -202,7 +202,7 @@ main(int  argc,				// I - Number of command-line arguments
 
 	ippDelete(cupsDoRequest(CUPS_HTTP_DEFAULT, request, "/admin/"));
 
-        if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+        if (cupsLastError() > IPP_STATUS_OK_CONFLICTING)
 	{
 	  cupsLangPrintf(stderr, "%s: %s", command, cupsLastErrorString());
 	  return (1);

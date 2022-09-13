@@ -264,7 +264,7 @@ main(int  argc,				// I - Number of command-line arguments
       else
         response = cupsDoRequest(http, request, "/jobs/");
 
-      if (response == NULL || ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+      if (response == NULL || ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING)
       {
         if (op == IPP_OP_PURGE_JOBS)
 	  cupsLangPrintf(stderr, _("%s: purge-jobs failed: %s"), argv[0], cupsLastErrorString());
@@ -320,7 +320,7 @@ main(int  argc,				// I - Number of command-line arguments
     // Do the request and get back a response...
     response = cupsDoRequest(http, request, "/admin/");
 
-    if (response == NULL || ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+    if (response == NULL || ippGetStatusCode(response) > IPP_STATUS_OK_CONFLICTING)
     {
       if (op == IPP_OP_PURGE_JOBS)
 	cupsLangPrintf(stderr, _("%s: purge-jobs failed: %s"), argv[0], cupsLastErrorString());

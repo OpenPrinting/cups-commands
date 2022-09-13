@@ -175,7 +175,7 @@ move_job(http_t     *http,		// I - HTTP connection to server
   // Do the request and get back a response...
   ippDelete(cupsDoRequest(http, request, "/jobs"));
 
-  if (cupsLastError() > IPP_STATUS_OK_CONFLICTING_ATTRIBUTES)
+  if (cupsLastError() > IPP_STATUS_OK_CONFLICTING)
   {
     cupsLangPrintf(stderr, "lpmove: %s", cupsLastErrorString());
     return (1);

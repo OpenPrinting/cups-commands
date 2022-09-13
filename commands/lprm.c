@@ -29,12 +29,12 @@ main(int  argc,			// I - Number of command-line arguments
 {
   int		i;		// Looping var
   int		job_id;		// Job ID
-  const char	*name;		// Destination printer
-  char		*instance,	// Pointer to instance name
+  char		*destname,	// Destination name
+		*instance,	// Pointer to instance name
 		*opt;		// Option pointer
-  cups_dest_t	*dest,		// Destination
+  cups_dest_t	*dest = NULL,	// Destination
 		*defdest;	// Default destination
-  int		did_cancel;	// Did we cancel something?
+  bool		did_cancel;	// Did we cancel something?
 
 
   localize_init(argv);
@@ -43,9 +43,8 @@ main(int  argc,			// I - Number of command-line arguments
   * Setup to cancel individual print jobs...
   */
 
-  did_cancel = 0;
+  did_cancel = false;
   defdest    = cupsGetNamedDest(CUPS_HTTP_DEFAULT, NULL, NULL);
-  name       = defdest ? defdest->name : NULL;
 
  /*
   * Process command-line arguments...
@@ -54,7 +53,9 @@ main(int  argc,			// I - Number of command-line arguments
   for (i = 1; i < argc; i ++)
   {
     if (!strcmp(argv[i], "--help"))
+    {
       usage();
+    }
     else if (argv[i][0] == '-' && argv[i][1] != '\0')
     {
       for (opt = argv[i] + 1; *opt; opt ++)
@@ -62,17 +63,13 @@ main(int  argc,			// I - Number of command-line arguments
 	switch (*opt)
 	{
 	  case 'E' : // Encrypt
-#ifdef HAVE_TLS
 	      cupsSetEncryption(HTTP_ENCRYPTION_REQUIRED);
-#else
-	      cupsLangPrintf(stderr, _("%s: Sorry, no encryption support."), argv[0]);
-#endif // HAVE_TLS
 	      break;
 
 	  case 'P' : // Cancel jobs on a printer
 	      if (opt[1] != '\0')
 	      {
-		name = opt + 1;
+		destname = opt + 1;
 		opt += strlen(opt) - 1;
 	      }
 	      else
@@ -85,19 +82,17 @@ main(int  argc,			// I - Number of command-line arguments
 		  usage();
 		}
 
-		name = argv[i];
+		destname = argv[i];
 	      }
 
-	      if ((instance = strchr(name, '/')) != NULL)
+	      if ((instance = strchr(destname, '/')) != NULL)
 		*instance = '\0';
 
-	      if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, name, NULL)) == NULL)
+	      if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, destname, NULL)) == NULL)
 	      {
-		cupsLangPrintf(stderr, _("%s: Error - unknown destination \"%s\"."), argv[0], name);
+		cupsLangPrintf(stderr, _("%s: Error - unknown destination \"%s\"."), argv[0], destname);
 		goto error;
 	      }
-
-	      cupsFreeDests(1, dest);
 	      break;
 
 	  case 'U' : // Username
@@ -135,14 +130,15 @@ main(int  argc,			// I - Number of command-line arguments
 		  usage();
 		}
 		else
+		{
 		  cupsSetServer(argv[i]);
+		}
 	      }
 
 	      if (defdest)
 		cupsFreeDests(1, defdest);
 
 	      defdest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, NULL, NULL);
-	      name    = defdest ? defdest->name : NULL;
 	      break;
 
 	  default :
@@ -153,72 +149,50 @@ main(int  argc,			// I - Number of command-line arguments
     }
     else
     {
-     /*
-      * Cancel a job or printer...
-      */
-
-      if ((dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, argv[i], NULL)) != NULL)
-        cupsFreeDests(1, dest);
+      // Cancel a job or printer...
+      dest = cupsGetNamedDest(CUPS_HTTP_DEFAULT, argv[i], NULL);
 
       if (dest)
       {
-        name   = argv[i];
         job_id = 0;
       }
       else if (isdigit(argv[i][0] & 255))
       {
-        name   = NULL;
         job_id = atoi(argv[i]);
       }
       else if (!strcmp(argv[i], "-"))
       {
-       /*
-        * Cancel all jobs
-        */
-
+        // Cancel all jobs
         job_id = -1;
       }
       else
       {
-	cupsLangPrintf(stderr, _("%s: Error - unknown destination \"%s\"."),
-			argv[0], argv[i]);
+	cupsLangPrintf(stderr, _("%s: Error - unknown destination \"%s\"."), argv[0], argv[i]);
 	goto error;
       }
 
-      if (cupsCancelJob2(CUPS_HTTP_DEFAULT, name, job_id, 0) != IPP_OK)
+      if (cupsCancelDestJob(CUPS_HTTP_DEFAULT, dest, job_id) != IPP_STATUS_OK)
       {
         cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
 	goto error;
       }
 
-      did_cancel = 1;
+      did_cancel = true;
     }
   }
 
- /*
-  * If nothing has been canceled yet, cancel the current job on the specified
-  * (or default) printer...
-  */
-
-  if (!did_cancel && cupsCancelJob2(CUPS_HTTP_DEFAULT, name, 0, 0) != IPP_OK)
-    {
-      cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
-      goto error;
-    }
-
-  if (defdest)
-    cupsFreeDests(1, defdest);
+  // If nothing has been canceled yet, cancel the current job on the specified
+  // (or default) printer...
+  if (!did_cancel && cupsCancelDestJob(CUPS_HTTP_DEFAULT, defdest, 0) != IPP_STATUS_OK)
+  {
+    cupsLangPrintf(stderr, "%s: %s", argv[0], cupsLastErrorString());
+    goto error;
+  }
 
   return (0);
 
- /*
-  * If we get here there was an error, so clean up...
-  */
-
+  // If we get here there was an error, so clean up...
   error:
-
-  if (defdest)
-    cupsFreeDests(1, defdest);
 
   return (1);
 }

@@ -19,16 +19,11 @@
 static int		add_printer_to_class(http_t *http, char *printer, char *pclass);
 static int		default_printer(http_t *http, char *printer);
 static int		delete_printer(http_t *http, char *printer);
-static int		delete_printer_from_class(http_t *http, char *printer,
-			                          char *pclass);
-static int		delete_printer_option(http_t *http, char *printer,
-			                      char *option);
+static int		delete_printer_from_class(http_t *http, char *printer, char *pclass);
+static int		delete_printer_option(http_t *http, char *printer, char *option);
 static int		enable_printer(http_t *http, char *printer);
-static cups_ptype_t	get_printer_type(http_t *http, char *printer, char *uri,
-			                 size_t urisize);
-static int		set_printer_options(http_t *http, char *printer,
-			                    int num_options, cups_option_t *options,
-					    char *file, int enable);
+static cups_ptype_t	get_printer_type(http_t *http, char *printer, char *uri, size_t urisize);
+static int		set_printer_options(http_t *http, char *printer, size_t num_options, cups_option_t *options, char *file, int enable);
 static void		usage(void) _CUPS_NORETURN;
 static int		validate_name(const char *name);
 
@@ -48,7 +43,7 @@ main(int  argc,				// I - Number of command-line arguments
 		*opt,			// Option pointer
 		*val;			// Pointer to allow/deny value
   int		enable = 0;		// Enable/resume printer?
-  int		num_options;		// Number of options
+  size_t	num_options;		// Number of options
   cups_option_t	*options;		// Options
   char		*file,			// New PPD file
 		evefile[1024] = "";	// IPP Everywhere PPD
