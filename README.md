@@ -7,9 +7,9 @@ CUPS Commands v3 (cups-commands)
 [![Coverity Scan](https://img.shields.io/coverity/scan/NNNNN)](https://scan.coverity.com/projects/OpenPrinting-cups-commands)
 [![LGTM Grade](https://img.shields.io/lgtm/grade/cpp/github/OpenPrinting/cups-commands)](https://lgtm.com/projects/g/OpenPrinting/cups-commands/?mode=list)
 
-> *Note:* This project is intended to be paired with the "libcups",
-> "cups-local", and "cups-sharing" projects.  Right now all of this code should
-> be considered alpha-quality for testing purposes only!
+> *Note:* This project will be merged with the "cups-local" project.  Right
+> now all of this code should be considered alpha-quality for testing
+> purposes only!
 
 The CUPS Commands provide the standard CUPS user and administrative commands
 such as "lp", "cancel", "lpoptions", and "lpadmin".  This project is part of
